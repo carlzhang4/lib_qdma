@@ -15,7 +15,8 @@ uint32_t readReg(uint32_t index);
 void* qdma_alloc(size_t size);
 void writeBridge(uint32_t index, uint64_t* value);
 void readBridge(uint32_t index, uint64_t* value);
-volatile __m512i* get_bridge_addr();
+void* getBridgeAddr();
+void* getLiteAddr();
 #define get_syspath_bar_mmap(s, bus,dev,func,bar) \
 	snprintf(s, sizeof(s), \
 		"/sys/bus/pci/devices/0000:%02x:%02x.%x/resource%u", \

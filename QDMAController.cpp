@@ -33,7 +33,7 @@ void init(unsigned char pci_bus=0x1a){
 	fd = open(fname, (PROT_WRITE & PROT_WRITE) ? O_RDWR : O_RDONLY);
 	if (fd < 0)
 		printf("Open bridge error, maybe need sudo\n");
-	axi_bridge =(__m512i*) mmap(NULL, 4*1024*1024, PROT_WRITE, MAP_SHARED, fd, 0);
+	axi_bridge =(__m512i*) mmap(NULL, 1*1024*1024*1024, PROT_WRITE, MAP_SHARED, fd, 0);
 
 	init_done=true;
 }
@@ -122,6 +122,10 @@ void readBridge(uint32_t index, uint64_t* value){
 }
 
 
-volatile __m512i* get_bridge_addr(){
-	return axi_bridge;
+void* getBridgeAddr(){
+	return (void*)axi_bridge;
+}
+
+void* getLiteAddr(){
+	return  (void*)axi_lite;
 }
