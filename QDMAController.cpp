@@ -1,24 +1,23 @@
 #include "QDMAController.h"
 
-
-void test(){
-	printf("QDMA lib test ok!\n");
-}
+using namespace std;
 
 bool init_done=false;
+volatile uint32_t *config_bar;
 volatile uint32_t *axi_lite;
 volatile __m512i *axi_bridge;
 
 
 
 void init(unsigned char pci_bus=0x1a){
-	//axi-lite
-	uint32_t barno = 2;//bar number axi lite
+	uint32_t barno;
 	char fname[256];
 	int fd;
-
 	unsigned char pci_dev 	=	0;
 	unsigned char dev_func	=	0;
+
+	//axi-lite
+	barno = 2;
 	get_syspath_bar_mmap(fname, pci_bus, pci_dev,dev_func, barno);
 	printf("%s\n",fname);
 	fd = open(fname, (PROT_WRITE & PROT_WRITE) ? O_RDWR : O_RDONLY);
@@ -35,10 +34,18 @@ void init(unsigned char pci_bus=0x1a){
 		printf("Open bridge error, maybe need sudo\n");
 	axi_bridge =(__m512i*) mmap(NULL, 1*1024*1024*1024, PROT_WRITE, MAP_SHARED, fd, 0);
 
+	//config bar
+	barno = 0;
+	get_syspath_bar_mmap(fname, pci_bus, pci_dev,dev_func, barno);
+	printf("%s\n",fname);
+	fd = open(fname, (PROT_WRITE & PROT_WRITE) ? O_RDWR : O_RDONLY);
+	if (fd < 0)
+		printf("Error\n");
+	config_bar = (uint32_t *)mmap(NULL, 256*1024, PROT_WRITE, MAP_SHARED, fd, 0);
 	init_done=true;
 }
 
-void* qdma_alloc(size_t size){
+void* qdma_alloc(size_t size, bool print_addr){
 	if(!init_done)
 		printf("Please Init First\n");
 	int fd,hfd;
@@ -76,7 +83,9 @@ void* qdma_alloc(size_t size){
 	}
 
 	for(int i=0;i<page_table->npages;i++){
-		// printf("%lx %lx\n",page_table->vaddr[i],page_table->paddr[i]);
+		if(print_addr){
+			printf("%lx %lx\n",page_table->vaddr[i],page_table->paddr[i]);
+		}
 		axi_lite[8]	= (uint32_t)(page_table->vaddr[i]);
 		axi_lite[9]	= (uint32_t)((page_table->vaddr[i])>>32);
 		axi_lite[10] = (uint32_t)(page_table->paddr[i]);
@@ -88,6 +97,21 @@ void* qdma_alloc(size_t size){
 
 	return huge_base;
 
+}
+
+void writeConfig(uint32_t index,uint32_t value){
+	if(init_done)
+		config_bar[index] = value;
+	else{
+		printf("Please Init First\n");
+	}
+}
+uint32_t readConfig(uint32_t index){
+	if(init_done)
+		return config_bar[index];
+	else{
+		printf("Please Init First\n");
+	}
 }
 
 void writeReg(uint32_t index,uint32_t value){
@@ -127,5 +151,37 @@ void* getBridgeAddr(){
 }
 
 void* getLiteAddr(){
-	return  (void*)axi_lite;
+	return (void*)axi_lite;
+}
+
+void resetCounters(){
+	axi_lite[14] = 1;
+	axi_lite[14] = 0;
+}
+
+void printCounters(){
+	cout<<endl<<"QDMA debug info:"<<endl<<endl;
+	printf("bar 1: 0x%x 	tlb miss count\n",	axi_lite[512+1]);
+
+	cout<<endl<<"C2H CMD fire()"<<endl;
+	printf("bar 2: 0x%x       io.c2h_cmd\n",	axi_lite[512+2]);
+	printf("bar 3: 0x%x       check_c2h.io.out\n",	axi_lite[512+3]);
+	printf("bar 4: 0x%x       boundary_split.io.cmd_out\n",	axi_lite[512+4]);
+	printf("bar 5: 0x%x       tlb.io.c2h_out\n",	axi_lite[512+5]);
+	printf("bar 6: 0x%x       fifo_c2h_cmd.io.out\n",	axi_lite[512+6]);
+
+	cout<<endl<<"H2C CMD fire()"<<endl;
+	printf("bar 7: 0x%x       io.h2c_cmd\n",	axi_lite[512+7]);
+	printf("bar 8: 0x%x       check_h2c.io.out\n",	axi_lite[512+8]);
+	printf("bar 9: 0x%x       tlb.io.h2c_out\n",	axi_lite[512+9]);
+	printf("bar 10: 0x%x      fifo_h2c_cmd.io.out\n",	axi_lite[512+10]);
+
+	cout<<endl<<"C2H DATA fire()"<<endl;
+	printf("bar 11: 0x%x      io.c2h_data\n",	axi_lite[512+11]);
+	printf("bar 12: 0x%x      boundary_split.io.data_out\n",	axi_lite[512+12]);
+	printf("bar 13: 0x%x      fifo_c2h_data.io.out\n",	axi_lite[512+13]);
+
+	cout<<endl<<"H2C DATA fire()"<<endl;
+	printf("bar 14: 0x%x      io.h2c_data\n",	axi_lite[512+14]);
+	printf("bar 15: 0x%x      fifo_h2c_cmd.io.in\n",	axi_lite[512+15]);
 }

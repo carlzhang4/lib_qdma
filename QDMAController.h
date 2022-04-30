@@ -8,11 +8,12 @@
 #include <immintrin.h>
 #include <rc4ml.h>
 
-void test();
 void init(unsigned char pci_bus);
+void writeConfig(uint32_t index,uint32_t value);
+uint32_t readConfig(uint32_t index);
 void writeReg(uint32_t index,uint32_t value);
 uint32_t readReg(uint32_t index);
-void* qdma_alloc(size_t size);
+void* qdma_alloc(size_t size, bool print_addr=0);
 void writeBridge(uint32_t index, uint64_t* value);
 void readBridge(uint32_t index, uint64_t* value);
 void* getBridgeAddr();
@@ -27,5 +28,8 @@ typedef struct{
 	unsigned long* vaddr;
 	unsigned long* paddr;
 }tlb;
+
+void resetCounters();
+void printCounters();
 
 #endif
