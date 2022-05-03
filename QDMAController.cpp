@@ -166,8 +166,8 @@ void printCounters(){
 	cout<<endl<<"C2H CMD fire()"<<endl;
 	printf("bar 2: 0x%x       io.c2h_cmd\n",	axi_lite[512+2]);
 	printf("bar 3: 0x%x       check_c2h.io.out\n",	axi_lite[512+3]);
-	printf("bar 4: 0x%x       boundary_split.io.cmd_out\n",	axi_lite[512+4]);
-	printf("bar 5: 0x%x       tlb.io.c2h_out\n",	axi_lite[512+5]);
+	printf("bar 5: 0x%x       tlb.io.c2h_out\n",	axi_lite[512+4]);
+	printf("bar 4: 0x%x       boundary_split.io.cmd_out\n",	axi_lite[512+5]);
 	printf("bar 6: 0x%x       fifo_c2h_cmd.io.out\n",	axi_lite[512+6]);
 
 	cout<<endl<<"H2C CMD fire()"<<endl;
@@ -183,5 +183,52 @@ void printCounters(){
 
 	cout<<endl<<"H2C DATA fire()"<<endl;
 	printf("bar 14: 0x%x      io.h2c_data\n",	axi_lite[512+14]);
-	printf("bar 15: 0x%x      fifo_h2c_cmd.io.in\n",	axi_lite[512+15]);
+	printf("bar 15: 0x%x      fifo_h2c_data.io.in\n",	axi_lite[512+15]);
+
+	//reporter
+	cout<<endl;
+	cout<<((axi_lite[512+16]>>0) & 1) << " Report 0:boundary check state===sIDLE"<<endl;
+	cout<<((axi_lite[512+16]>>1) & 1) << " Report 1:boundary check state===sFIRSTCMD"<<endl;
+	cout<<((axi_lite[512+16]>>2) & 1) << " Report 2:boundary check state===sSPLIT"<<endl;
+	cout<<((axi_lite[512+16]>>3) & 1) << " Report 3:boundary check state===sMINISPLIT"<<endl;
+	cout<<((axi_lite[512+16]>>4) & 1) << " Report 4:boundary check state===sLASTSPLIT"<<endl;
+	cout<<((axi_lite[512+16]>>5) & 1) << " Report 5:boundary check state===sIDLE"<<endl;
+	cout<<((axi_lite[512+16]>>6) & 1) << " Report 6:boundary check state===sFIRSTCMD"<<endl;
+	cout<<((axi_lite[512+16]>>7) & 1) << " Report 7:boundary check state===sSPLIT"<<endl;
+	cout<<((axi_lite[512+16]>>8) & 1) << " Report 8:boundary check state===sMINISPLIT"<<endl;
+	cout<<((axi_lite[512+16]>>9) & 1) << " Report 9:boundary check state===sLASTSPLIT"<<endl;
+	cout<<((axi_lite[512+16]>>10) & 1) << " Report 10:boundary split state===sIDLE"<<endl;
+	cout<<((axi_lite[512+16]>>11) & 1) << " Report 11:boundary split state===sREAD_DATA"<<endl;
+	cout<<endl;
+	cout<<((axi_lite[512+16]>>12) & 1) << " Report 12:io.c2h_cmd.valid"<<endl;
+	cout<<((axi_lite[512+16]>>13) & 1) << " Report 13:io.c2h_cmd.ready"<<endl;
+	cout<<((axi_lite[512+16]>>14) & 1) << " Report 14:check_c2h.io.out.valid"<<endl;
+	cout<<((axi_lite[512+16]>>15) & 1) << " Report 15:check_c2h.io.out.ready"<<endl;
+	cout<<((axi_lite[512+16]>>16) & 1) << " Report 16:tlb.io.c2h_out.valid"<<endl;
+	cout<<((axi_lite[512+16]>>17) & 1) << " Report 17:tlb.io.c2h_out.ready"<<endl;
+	cout<<((axi_lite[512+16]>>18) & 1) << " Report 18:boundary_split.io.cmd_out.valid"<<endl;
+	cout<<((axi_lite[512+16]>>19) & 1) << " Report 19:boundary_split.io.cmd_out.ready"<<endl;
+	cout<<((axi_lite[512+16]>>20) & 1) << " Report 20:fifo_c2h_cmd.io.out.valid"<<endl;
+	cout<<((axi_lite[512+16]>>21) & 1) << " Report 21:fifo_c2h_cmd.io.out.ready"<<endl;
+	cout<<endl;
+	cout<<((axi_lite[512+16]>>22) & 1) << " Report 22:io.h2c_cmd.valid"<<endl;
+	cout<<((axi_lite[512+16]>>23) & 1) << " Report 23:io.h2c_cmd.ready"<<endl;
+	cout<<((axi_lite[512+16]>>24) & 1) << " Report 24:check_h2c.io.out.valid"<<endl;
+	cout<<((axi_lite[512+16]>>25) & 1) << " Report 25:check_h2c.io.out.ready"<<endl;
+	cout<<((axi_lite[512+16]>>26) & 1) << " Report 26:tlb.io.h2c_out.valid"<<endl;
+	cout<<((axi_lite[512+16]>>27) & 1) << " Report 27:tlb.io.h2c_out.ready"<<endl;
+	cout<<((axi_lite[512+16]>>28) & 1) << " Report 28:fifo_h2c_cmd.io.out.valid"<<endl;
+	cout<<((axi_lite[512+16]>>29) & 1) << " Report 29:fifo_h2c_cmd.io.out.ready"<<endl;
+	cout<<endl;
+	cout<<((axi_lite[512+16]>>30) & 1) << " Report 30:io.c2h_cmd.valid"<<endl;
+	cout<<((axi_lite[512+16]>>31) & 1) << " Report 31:io.c2h_cmd.ready"<<endl;
+	cout<<((axi_lite[512+17]>>0) & 1)  << " Report 32:boundary_split.io.data_out.valid"<<endl;
+	cout<<((axi_lite[512+17]>>1) & 1)  << " Report 33:boundary_split.io.data_out.ready"<<endl;
+	cout<<((axi_lite[512+17]>>2) & 1)  << " Report 34:fifo_c2h_data.io.out.valid"<<endl;
+	cout<<((axi_lite[512+17]>>3) & 1)  << " Report 35:fifo_c2h_data.io.out.ready"<<endl;
+	cout<<endl;
+	cout<<((axi_lite[512+17]>>4) & 1)  << " Report 36:io.h2c_data.valid"<<endl;
+	cout<<((axi_lite[512+17]>>5) & 1)  << " Report 37:io.h2c_data.ready"<<endl;
+	cout<<((axi_lite[512+17]>>6) & 1)  << " Report 38:fifo_h2c_data.io.in.valid"<<endl;
+	cout<<((axi_lite[512+17]>>7) & 1)  << " Report 39:fifo_h2c_data.io.in.ready"<<endl;
 }
