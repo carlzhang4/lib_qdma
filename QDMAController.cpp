@@ -20,7 +20,7 @@ void init(unsigned char pci_bus=0x1a){
 	barno = 2;
 	get_syspath_bar_mmap(fname, pci_bus, pci_dev,dev_func, barno);
 	printf("%s\n",fname);
-	fd = open(fname, (PROT_WRITE & PROT_WRITE) ? O_RDWR : O_RDONLY);
+	fd = open(fname, O_RDWR);
 	if (fd < 0)
 		printf("Open lite error, maybe need sudo\n");
 	axi_lite =(uint32_t*) mmap(NULL, 4*1024, PROT_WRITE, MAP_SHARED, fd, 0);
@@ -29,16 +29,16 @@ void init(unsigned char pci_bus=0x1a){
 	barno = 4;
 	get_syspath_bar_mmap(fname, pci_bus, pci_dev,dev_func, barno);
 	printf("%s\n",fname);
-	fd = open(fname, (PROT_WRITE & PROT_WRITE) ? O_RDWR : O_RDONLY);
+	fd = open(fname, O_RDWR);
 	if (fd < 0)
 		printf("Open bridge error, maybe need sudo\n");
-	axi_bridge =(__m512i*) mmap(NULL, 1*1024*1024*1024, PROT_WRITE, MAP_SHARED, fd, 0);
+	axi_bridge =(__m512i*) mmap(NULL, 1*1024*1024*1024, PROT_WRITE, MAP_SHARED|MAP_LOCKED , fd, 0);
 
 	//config bar
 	barno = 0;
 	get_syspath_bar_mmap(fname, pci_bus, pci_dev,dev_func, barno);
 	printf("%s\n",fname);
-	fd = open(fname, (PROT_WRITE & PROT_WRITE) ? O_RDWR : O_RDONLY);
+	fd = open(fname, O_RDWR);
 	if (fd < 0)
 		printf("Error\n");
 	config_bar = (uint32_t *)mmap(NULL, 256*1024, PROT_WRITE, MAP_SHARED, fd, 0);
