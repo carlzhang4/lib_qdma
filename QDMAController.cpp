@@ -1,53 +1,78 @@
 #include "QDMAController.h"
-
+#include <map>
 using namespace std;
 
-bool init_done=false;
-volatile uint32_t *config_bar;
-volatile uint32_t *axi_lite;
-volatile __m512i *axi_bridge;
+map<char,Bars> device_list;
+int num_device=0;
+unsigned char default_pci_bus=0;
 
-
-
-void init(unsigned char pci_bus=0x1a){
-	uint32_t barno;
+unsigned char get_pci_bus(unsigned char pci_bus){
+	if(pci_bus==0){
+		pci_bus=default_pci_bus;
+	}
+	if(device_list.count(pci_bus)==0){
+		printf("Device %d has not been initialized\n",pci_bus);
+		exit(1);
+	}
+	return pci_bus;
+}
+void init(unsigned char pci_bus, size_t bridge_bar_size){
+	printf("Init pci dev: 0x%x\n",pci_bus);
+	if(device_list.count(pci_bus) != 0){
+		printf("device 0x%x has already been initialized!\n",pci_bus);
+		exit(1);
+	}else{
+		if(device_list.size() == 0){
+			default_pci_bus = pci_bus;
+		}
+		Bars t;
+		device_list[pci_bus] = t;
+	}
 	char fname[256];
 	int fd;
 	unsigned char pci_dev 	=	0;
 	unsigned char dev_func	=	0;
 
 	//axi-lite
-	barno = 2;
-	get_syspath_bar_mmap(fname, pci_bus, pci_dev,dev_func, barno);
-	printf("%s\n",fname);
+	get_syspath_bar_mmap(fname, pci_bus, pci_dev,dev_func, 2);//lite bar is 2
 	fd = open(fname, O_RDWR);
-	if (fd < 0)
-		printf("Open lite error, maybe need sudo\n");
-	axi_lite =(uint32_t*) mmap(NULL, 4*1024, PROT_WRITE, MAP_SHARED, fd, 0);
-
+	if (fd < 0){
+		printf("Open lite error, maybe need sudo or you can check whether if %s exists\n",fname);
+		exit(1);
+	}
+	device_list[pci_bus].lite_bar =(uint32_t*) mmap(NULL, 4*1024, PROT_WRITE, MAP_SHARED, fd, 0);
+	if(device_list[pci_bus].lite_bar == MAP_FAILED){
+		printf("MMAP lite bar error, please check fpga lite bar size in vivado\n");
+		exit(1);
+	}
 	//axi-bridge
-	barno = 4;
-	get_syspath_bar_mmap(fname, pci_bus, pci_dev,dev_func, barno);
-	printf("%s\n",fname);
+	get_syspath_bar_mmap(fname, pci_bus, pci_dev,dev_func, 4);//bridge bar is 4
 	fd = open(fname, O_RDWR);
-	if (fd < 0)
-		printf("Open bridge error, maybe need sudo\n");
-	axi_bridge =(__m512i*) mmap(NULL, 1*1024*1024*1024, PROT_WRITE, MAP_SHARED|MAP_LOCKED , fd, 0);
-
+	if (fd < 0){
+		printf("Open bridge error, maybe need sudo or you can check whether if %s exists\n",fname);
+		exit(1);
+	}
+	device_list[pci_bus].bridge_bar =(__m512i*) mmap(NULL, bridge_bar_size, PROT_WRITE, MAP_SHARED|MAP_LOCKED , fd, 0);
+	if(device_list[pci_bus].bridge_bar == MAP_FAILED){
+		printf("MMAP bridge bar error, please check fpga bridge bar size in vivado\n");
+		exit(1);
+	}
 	//config bar
-	barno = 0;
-	get_syspath_bar_mmap(fname, pci_bus, pci_dev,dev_func, barno);
-	printf("%s\n",fname);
+	get_syspath_bar_mmap(fname, pci_bus, pci_dev,dev_func, 0);//config bar is 0
 	fd = open(fname, O_RDWR);
-	if (fd < 0)
-		printf("Error\n");
-	config_bar = (uint32_t *)mmap(NULL, 256*1024, PROT_WRITE, MAP_SHARED, fd, 0);
-	init_done=true;
+	if (fd < 0){
+		printf("Open config error, maybe need sudo or you can check whether if %s exists\n",fname);
+		exit(1);
+	}
+	device_list[pci_bus].config_bar = (uint32_t *)mmap(NULL, 256*1024, PROT_WRITE, MAP_SHARED, fd, 0);
+	if(device_list[pci_bus].config_bar == MAP_FAILED){
+		printf("MMAP config bar error, please check fpga config bar size in vivado\n");
+		exit(1);
+	}
 }
 
-void* qdma_alloc(size_t size, bool print_addr){
-	if(!init_done)
-		printf("Please Init First\n");
+void* qdma_alloc(size_t size, unsigned char pci_bus, bool print_addr){
+	pci_bus = get_pci_bus(pci_bus);
 	int fd,hfd;
 	void* huge_base;
 	struct huge_mem hm;
@@ -55,12 +80,14 @@ void* qdma_alloc(size_t size, bool print_addr){
 		printf("[ERROR] on open /dev/rc4ml_dev, maybe you need to add 'sudo', or insmod\n");
 		exit(1);
    	}
-	if ((hfd = open("/media/huge/abc", O_CREAT | O_RDWR | O_SYNC, 0755)) == -1) {
-		printf("[ERROR] on open /media/huge/abc, maybe you need to add 'sudo'\n");
+	char path[20];
+	sprintf(path,"/media/huge/hfd_%x",pci_bus);
+	if ((hfd = open(path, O_CREAT | O_RDWR | O_SYNC, 0755)) == -1) {
+		printf("[ERROR] on open %s, maybe you need to add 'sudo'\n",path);
 		exit(1);
    	}
 	huge_base = mmap(0, size, PROT_READ | PROT_WRITE, MAP_SHARED, hfd, 0);
-	printf("huge device mapped at vaddr:%p\n", huge_base);
+	printf("huge pages base vaddr:%p\n", huge_base);
 	hm.vaddr = (unsigned long)huge_base;
 	hm.size = size;
 	if(ioctl(fd, HUGE_MAPPING_SET, &hm) == -1){
@@ -78,7 +105,7 @@ void* qdma_alloc(size_t size, bool print_addr){
 	page_table->vaddr = (unsigned long*) calloc(map.nhpages, sizeof(unsigned long*));
 	page_table->paddr = (unsigned long*) calloc(map.nhpages, sizeof(unsigned long*));
 	for(int i=0;i<page_table->npages;i++){
-		page_table->vaddr[i] = (unsigned long)huge_base + i*2*1024*1024;
+		page_table->vaddr[i] = (unsigned long)huge_base + ((unsigned long)i)*2*1024*1024;
 		page_table->paddr[i] = map.phy_addr[i];
 	}
 
@@ -86,80 +113,65 @@ void* qdma_alloc(size_t size, bool print_addr){
 		if(print_addr){
 			printf("%lx %lx\n",page_table->vaddr[i],page_table->paddr[i]);
 		}
-		axi_lite[8]	= (uint32_t)(page_table->vaddr[i]);
-		axi_lite[9]	= (uint32_t)((page_table->vaddr[i])>>32);
-		axi_lite[10] = (uint32_t)(page_table->paddr[i]);
-		axi_lite[11] = (uint32_t)((page_table->paddr[i])>>32);
-		axi_lite[12] = (i==0);
-		axi_lite[13] = 1;
-		axi_lite[13] = 0;
+		device_list[pci_bus].lite_bar[8]	= (uint32_t)(page_table->vaddr[i]);
+		device_list[pci_bus].lite_bar[9]	= (uint32_t)((page_table->vaddr[i])>>32);
+		device_list[pci_bus].lite_bar[10]	= (uint32_t)(page_table->paddr[i]);
+		device_list[pci_bus].lite_bar[11]	= (uint32_t)((page_table->paddr[i])>>32);
+		device_list[pci_bus].lite_bar[12]	= (i==0);
+		device_list[pci_bus].lite_bar[13]	= 1;
+		device_list[pci_bus].lite_bar[13]	= 0;
 	}
-
 	return huge_base;
-
 }
 
-void writeConfig(uint32_t index,uint32_t value){
-	if(init_done)
-		config_bar[index] = value;
-	else{
-		printf("Please Init First\n");
-	}
+void writeConfig(uint32_t index,uint32_t value, unsigned char pci_bus){
+	pci_bus = get_pci_bus(pci_bus);
+	device_list[pci_bus].config_bar[index] = value;
 }
-uint32_t readConfig(uint32_t index){
-	if(init_done)
-		return config_bar[index];
-	else{
-		printf("Please Init First\n");
-	}
+uint32_t readConfig(uint32_t index, unsigned char pci_bus){
+	pci_bus = get_pci_bus(pci_bus);
+	return device_list[pci_bus].config_bar[index];
 }
 
-void writeReg(uint32_t index,uint32_t value){
-	if(init_done)
-		axi_lite[index] = value;
-	else{
-		printf("Please Init First\n");
-	}
+void writeReg(uint32_t index,uint32_t value, unsigned char pci_bus){
+	pci_bus = get_pci_bus(pci_bus);
+	device_list[pci_bus].lite_bar[index] = value;
 }
-uint32_t readReg(uint32_t index){
-	if(init_done)
-		return axi_lite[index];
-	else{
-		printf("Please Init First\n");
-	}
+uint32_t readReg(uint32_t index, unsigned char pci_bus){
+	pci_bus = get_pci_bus(pci_bus);
+	return device_list[pci_bus].lite_bar[index];
 }
 
-void writeBridge(uint32_t index, uint64_t* value){
-	if(init_done)
-		axi_bridge[index] = _mm512_set_epi64(value[7],value[6],value[5],value[4],value[3],value[2],value[1],value[0]);
-	else{
-		printf("Please Init First\n");
-	}
+void writeBridge(uint32_t index, uint64_t* value, unsigned char pci_bus){
+	pci_bus = get_pci_bus(pci_bus);
+	device_list[pci_bus].bridge_bar[index] = _mm512_set_epi64(value[7],value[6],value[5],value[4],value[3],value[2],value[1],value[0]);
 }
 
-void readBridge(uint32_t index, uint64_t* value){
-	if(init_done)
-		_mm512_store_epi64(value,axi_bridge[index]);
-	else{
-		printf("Please Init First\n");
-	}
+void readBridge(uint32_t index, uint64_t* value, unsigned char pci_bus){
+	pci_bus = get_pci_bus(pci_bus);
+	_mm512_store_epi64(value,device_list[pci_bus].bridge_bar[index]);
 }
 
 
-void* getBridgeAddr(){
-	return (void*)axi_bridge;
+void* getBridgeAddr(unsigned char pci_bus){
+	pci_bus = get_pci_bus(pci_bus);
+	return (void*)(device_list[pci_bus].bridge_bar);
 }
 
-void* getLiteAddr(){
-	return (void*)axi_lite;
+void* getLiteAddr(unsigned char pci_bus){
+	pci_bus = get_pci_bus(pci_bus);
+	return (void*)(device_list[pci_bus].lite_bar);
 }
 
-void resetCounters(){
-	axi_lite[14] = 1;
-	axi_lite[14] = 0;
+void resetCounters(unsigned char pci_bus){
+	pci_bus = get_pci_bus(pci_bus);
+	device_list[pci_bus].lite_bar[14] = 1;
+	device_list[pci_bus].lite_bar[14] = 0;
 }
 
-void printCounters(){
+void printCounters(unsigned char pci_bus){
+	pci_bus = get_pci_bus(pci_bus);
+	volatile uint32_t *axi_lite = device_list[pci_bus].lite_bar;
 	cout<<endl<<"QDMA debug info:"<<endl<<endl;
 	printf("bar 1: 0x%x 	tlb miss count\n",	axi_lite[512+1]);
 
